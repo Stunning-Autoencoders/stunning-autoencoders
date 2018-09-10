@@ -1,4 +1,0 @@
-these files where copied from
-https://github.com/dancsalo/TensorFlow-VAE
-and
-https://github.com/dancsalo/TensorBase
