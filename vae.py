@@ -60,6 +60,9 @@ class LatentAttention():
         return h2
 
     def train(self):
+        if not os.path.exists("/training"):
+            os.makedirs("/training")
+
         visualization = self.mnist.train.next_batch(self.batchsize)[0]
         reshaped_vis = visualization.reshape(self.batchsize, 28, 28)
         # ims("results/base.jpg", merge(reshaped_vis[:64], [8, 8]))
@@ -81,7 +84,7 @@ class LatentAttention():
                 generated_test = sess.run(self.generated_images, feed_dict={self.images: visualization})
                 generated_test = generated_test.reshape(self.batchsize, 28, 28)
                 # ims("results/" + str(epoch) + ".jpg", merge(generated_test[:64], [8, 8]))
-                pyplot.imsave("results/" + str(epoch) + ".jpg", generated_test[0])
+                pyplot.imsave(str(epoch) + ".jpg", generated_test[0])
 
 
 if __name__ == '__main__':
