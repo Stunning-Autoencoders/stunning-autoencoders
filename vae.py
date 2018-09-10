@@ -8,6 +8,8 @@ import os
 from ops import *
 
 
+# this code is mainly copied from:
+# https://github.com/kvfrans/variational-autoencoder
 class LatentAttention():
     def __init__(self):
         self.mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
