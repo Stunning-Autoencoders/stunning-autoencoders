@@ -33,8 +33,9 @@ class LatentAttention():
 
         # *** LOSS
         # one 2 one loss (input/output)
-        self.generation_loss = -tf.reduce_sum(
-            self.images * tf.log(1e-8 + generated_flat) + (1 - self.images) * tf.log(1e-8 + 1 - generated_flat), 1)
+        # self.generation_loss = -tf.reduce_sum(
+        #    self.images * tf.log(1e-8 + generated_flat) + (1 - self.images) * tf.log(1e-8 + 1 - generated_flat), 1)
+        self.generation_loss = tf.abs(tf.reduce_sum(tf.square(self.images - generated_flat))) / self.batchsize
 
         # KL-divergence
         self.latent_loss = 0.5 * tf.reduce_sum(
