@@ -1,9 +1,15 @@
+import time
+
 import numpy as np
 from matplotlib import pyplot
 from tensorflow.examples.tutorials.mnist import input_data
 import os
 
 import tensorflow as tf
+
+TRAINING = "./training/" + str(time.time())
+TF_BOARD = TRAINING
+IMAGES = TRAINING + "/images"
 
 
 # this code is mainly copied from:
@@ -47,6 +53,14 @@ class LatentAttention():
         # *** OPTIMIZER
         self.optimizer = tf.train.AdamOptimizer(0.001).minimize(self.cost)
 
+        self.init = tf.global_variables_initializer()
+
+        # *** SUMMARIES
+        tf.summary.scalar("total", self.cost, family="loss")
+        tf.summary.scalar("generation", tf.reduce_mean(self.generation_loss), family="loss")
+        tf.summary.scalar("KL-Divergence", tf.reduce_mean(self.latent_loss), family="loss")
+        self.merged_summary_op = tf.summary.merge_all()
+
     # encoder
     def encode(self, input_images):
         with tf.variable_scope("encode"):
@@ -76,28 +90,34 @@ class LatentAttention():
         return h2
 
     def train(self):
-        if not os.path.exists("./training"):
-            os.makedirs("./training")
-
+        os.makedirs(TRAINING, exist_ok=True)
+        os.makedirs(TF_BOARD, exist_ok=True)
+        os.makedirs(IMAGES, exist_ok=True)
         visualization = self.mnist.train.next_batch(self.batchsize)[0]
+        summary_writer = tf.summary.FileWriter(TF_BOARD, graph=tf.get_default_graph())
+
         # train
         saver = tf.train.Saver(max_to_keep=2)
         with tf.Session() as sess:
-            sess.run(tf.initialize_all_variables())
-            for epoch in range(10):
+            sess.run(self.init)
+            for epoch in range(100):
                 gen_loss = None
                 lat_loss = None
 
                 for idx in range(int(self.n_samples / self.batchsize)):
                     batch = self.mnist.train.next_batch(self.batchsize)[0]
-                    _, gen_loss, lat_loss = sess.run((self.optimizer, self.generation_loss, self.latent_loss),
-                                                     feed_dict={self.images: batch})
+                    _, gen_loss, lat_loss, summary = sess.run(
+                        (self.optimizer, self.generation_loss, self.latent_loss, self.merged_summary_op),
+                        feed_dict={self.images: batch})
+
+                    # Write logs at every iteration
+                    summary_writer.add_summary(summary, epoch * (self.n_samples / self.batchsize) + idx)
 
                 print("epoch {}: genloss {} latloss {}".format(epoch, np.mean(gen_loss), np.mean(lat_loss)))
-                saver.save(sess, os.getcwd() + "/training/train", global_step=epoch)
+                saver.save(sess, TRAINING + "/train", global_step=epoch * self.n_samples)
                 generated_test = sess.run(self.generated_images, feed_dict={self.images: visualization})
                 generated_test = generated_test.reshape(self.batchsize, 28, 28)
-                pyplot.imsave(str(epoch) + ".jpg", generated_test[0])
+                pyplot.imsave(IMAGES + "/{0:03d}.jpg".format(epoch), generated_test[0])
 
 
 if __name__ == '__main__':
