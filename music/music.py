@@ -2,19 +2,24 @@ from scipy.io import wavfile
 import numpy as np
 from matplotlib import pyplot as plt
 
-
 class WaveFile(object):
     def __init__(self, dir):
         self.hz = self.c1 = self.c2 = self.length = None
         self.dir = dir
         self.read(dir)
 
-    def read(self, dir):
-        wave_file = wavfile.read(dir)
+    def read(self, file):
+        wave_file = wavfile.read(file)
         self.c1 = wave_file[1][:, 0]
         self.c2 = wave_file[1][:, 1]
         self.hz = wave_file[0]
         self.length = len(self.c1) / wave_file[0]
+
+    def generate(self, file, n):
+
+        for _ in range(n):
+            self.read()
+
 
     def std(self):
         return np.std(self.c1)
@@ -32,19 +37,19 @@ if __name__ == '__main__':
 
     print(wave_file.std())
 
-    plt.subplot(4, 1, 1)
+    plt.subplot(3, 1, 1)
     plt.hist(wave_file.c1, range=(-5000, 5000), bins=500, density=False, label="wave")
     plt.legend()
 
-    import matplotlib.mlab as mlab
 
-    plt.subplot(4, 1, 2)
+    import matplotlib.mlab as mlab
+    import math
+
+    plt.subplot(3, 1, 2)
     mu = wave_file.mean()
     sigma = wave_file.std()
     x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 1000)
     plt.plot(x, mlab.normpdf(x, mu, sigma))
-    plt.subplot(4, 1, 3)
-    plt.specgram(wave_file.c1, Fs=wave_file.hz)
-    plt.subplot(4, 1, 4)
+
     plt.plot(wave_file.c1)
-    plt.show()
+    #plt.show()

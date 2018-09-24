@@ -10,6 +10,6 @@ DEFAULT = model_args(data_set=DataProvider.get_mnist, hidden_size=20, batch_size
 
 TIME = str(datetime.datetime.now())
 
-TRAINING = lambda: "./training/{}/{}".format(os.environ["Model"], TIME)
+TRAINING = lambda: "./training/{}/{}".format(os.environ["Model"], TIME.replace(":", "-"))
 TF_BOARD = lambda: TRAINING()
 IMAGES = lambda: TRAINING() + "/images"
