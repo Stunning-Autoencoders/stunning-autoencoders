@@ -3,7 +3,7 @@ import os
 from abc import ABC, abstractmethod
 
 import tensorflow as tf
-from matplotlib import pyplot
+import matplotlib.pyplot as plt
 
 from config.config import TRAINING, TF_BOARD, IMAGES
 
@@ -103,6 +103,15 @@ class VAE(ABC):
                                                             feed_dict={self.images_1d: static_batch})
                 summary_writer.add_summary(images_summary,
                                            global_step=epoch * self.data_set.train.num_examples)
+
+    def load_pretrained(self, path):
+        saver = tf.train.Saver(max_to_keep=2)
+        with tf.Session() as sess:
+            saver.restore(sess, tf.train.latest_checkpoint(path))
+            z = tf.random_normal([1, 20], 0, 1, dtype=tf.float32)
+            # todo create graph for running decode
+            img = self.decode(z)
+            plt.plot(img)
 
 
 class SimpleVAE(VAE):

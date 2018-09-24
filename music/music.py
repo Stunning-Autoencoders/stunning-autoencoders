@@ -2,6 +2,7 @@ from scipy.io import wavfile
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 class WaveFile(object):
     def __init__(self, dir):
         self.hz = self.c1 = self.c2 = self.length = None
@@ -31,19 +32,19 @@ if __name__ == '__main__':
 
     print(wave_file.std())
 
-    plt.subplot(3, 1, 1)
-    plt.hist(wave_file.c1, range=(-5000,5000), bins=500, density=False, label="wave")
+    plt.subplot(4, 1, 1)
+    plt.hist(wave_file.c1, range=(-5000, 5000), bins=500, density=False, label="wave")
     plt.legend()
 
-
     import matplotlib.mlab as mlab
-    import math
 
-    plt.subplot(3, 1, 2)
+    plt.subplot(4, 1, 2)
     mu = wave_file.mean()
     sigma = wave_file.std()
     x = np.linspace(mu - 3 * sigma, mu + 3 * sigma, 1000)
     plt.plot(x, mlab.normpdf(x, mu, sigma))
-
+    plt.subplot(4, 1, 3)
+    plt.specgram(wave_file.c1, Fs=wave_file.hz)
+    plt.subplot(4, 1, 4)
     plt.plot(wave_file.c1)
     plt.show()
