@@ -10,39 +10,39 @@ from config.config import TRAINING, TF_BOARD, IMAGES
 
 class VAE(ABC):
 
-    def __init__(self, data_set, hidden_size, batch_size, learning_rate):
+    def __init__(self, data_set, hidden_size, batch_size, learning_rate, max_epochs):
         self.data_set, self.width = data_set()
         self.batch_size = batch_size
         self.hidden_size = hidden_size
+        self.max_epochs = max_epochs
         self.iterations_per_epoch = self.data_set.train.num_examples // self.batch_size
 
         # *** FEED FORWARD
         # encoder
         self.images_1d = tf.placeholder(tf.float32, [None, self.width ** 2])
-        images_2d = tf.reshape(self.images_1d, [-1, self.width, self.width, 1])
-        self.z_mean, self.z_stddev = self.encode(images_2d)
+        self.dynamic_batch_size = tf.shape(self.images_1d)[0]
+        images_2d = tf.reshape(self.images_1d, [self.dynamic_batch_size, self.width, self.width, 1])
+        z_mean, z_stddev = self.encode(images_2d)
 
         # generate samples
-        samples = tf.random_normal([self.batch_size, self.hidden_size], 0, 1, dtype=tf.float32)
+        samples = tf.random_normal([self.dynamic_batch_size, self.hidden_size], 0, 1, dtype=tf.float32)
+        guessed_z = z_mean + (z_stddev * samples)
 
-        # condition for generating images only from normal distribution
-        self.training_indicator = tf.placeholder(tf.bool, shape=[], name="training")
-        self.input_z = tf.placeholder_with_default(np.zeros((1, self.hidden_size), np.float32),
-                                                   shape=[None, self.hidden_size])
-        guessed_z = tf.cond(self.training_indicator, lambda: self.z_mean + (self.z_stddev * samples),
-                            lambda: self.input_z)
+        # real z as input, needs to be separate for feeding in batches with different sizes
+        self.latent_z = guessed_z
 
         # decoder
-        self.generated_images = self.decode(guessed_z)
-        generated_flat = tf.reshape(self.generated_images, [self.batch_size, -1])
+        self.generated_images = self.decode(self.latent_z)
+        generated_flat = tf.reshape(self.generated_images, [self.dynamic_batch_size, -1])
 
         # *** LOSS
         # pixel correspondence loss (input/output)
-        self.generation_loss = tf.abs(tf.reduce_sum(tf.square(self.images_1d - generated_flat))) / self.batch_size
+        self.generation_loss = tf.abs(tf.reduce_sum(tf.square(self.images_1d - generated_flat))) / tf.to_float(
+            self.dynamic_batch_size)
 
         # KL-divergence
         self.latent_loss = 0.5 * tf.reduce_sum(
-            tf.square(self.z_mean) + tf.square(self.z_stddev) - tf.log(tf.square(self.z_stddev)) - 1, 1)
+            tf.square(z_mean) + tf.square(z_stddev) - tf.log(tf.square(z_stddev)) - 1, 1)
 
         # total loss
         self.cost = tf.reduce_mean(self.generation_loss + self.latent_loss)
@@ -58,7 +58,7 @@ class VAE(ABC):
         tf.summary.scalar("KL-Divergence", tf.reduce_mean(self.latent_loss), family="loss")
         self.merged_summary_op = tf.summary.merge_all()
         self.image_summary = tf.summary.image("image", tf.reshape(self.generated_images,
-                                                                  (-1, self.width, self.width, 1)))
+                                                                  (self.dynamic_batch_size, self.width, self.width, 1)))
         os.environ["Model"] = self.__class__.__name__
 
     @abstractmethod
@@ -85,7 +85,7 @@ class VAE(ABC):
         saver = tf.train.Saver(max_to_keep=2)
         with tf.Session() as sess:
             sess.run(self.init)
-            for epoch in range(100):
+            for epoch in range(self.max_epochs):
                 gen_loss = None
                 lat_loss = None
 
@@ -93,7 +93,7 @@ class VAE(ABC):
                     batch = self.data_set.train.next_batch(self.batch_size)[0]
                     _, gen_loss, lat_loss, summary = sess.run(
                         (self.optimizer, self.generation_loss, self.latent_loss, self.merged_summary_op),
-                        feed_dict={self.images_1d: batch, self.training_indicator: True})
+                        feed_dict={self.images_1d: batch})
 
                     # Write logs at every iteration
                     summary_writer.add_summary(summary, epoch * self.iterations_per_epoch + idx)
@@ -106,8 +106,7 @@ class VAE(ABC):
 
                 # log images
                 generated_images, images_summary = sess.run((self.generated_images, self.image_summary),
-                                                            feed_dict={self.images_1d: static_batch,
-                                                                       self.training_indicator: True})
+                                                            feed_dict={self.images_1d: static_batch})
                 summary_writer.add_summary(images_summary,
                                            global_step=epoch * self.data_set.train.num_examples)
 
@@ -116,11 +115,10 @@ class VAE(ABC):
         with tf.Session() as sess:
             saver.restore(sess, tf.train.latest_checkpoint(path))
             # you can change the 1 to a different number, it indicates how many images are generated
-            z = np.random.standard_normal((1, self.hidden_size))
+            number_of_images = 1
+            z = np.random.standard_normal((number_of_images, self.hidden_size))
             generated_image = sess.run(self.generated_images,
-                                       feed_dict={self.input_z: z, self.training_indicator: False,
-                                                  self.z_stddev: np.zeros((self.batch_size, self.hidden_size)),
-                                                  self.z_mean: np.zeros((self.batch_size, self.hidden_size))})
+                                       feed_dict={self.dynamic_batch_size: number_of_images, self.latent_z: z})
             # plot somehow only works with two dimension (the third is 1 anyway)
             img = generated_image[0, :, :, 0]
             plt.plot(img)
@@ -137,7 +135,7 @@ class SimpleVAE(VAE):
             # 14x14x16 -> 7x7x32
             conv_2 = tf.layers.conv2d(conv_1, 32, kernel_size=5, activation=tf.nn.leaky_relu, strides=2, padding='same')
             # 7x7x32 -> (7*7*32)
-            flatten = tf.reshape(conv_2, [self.batch_size, 7 * 7 * 32])
+            flatten = tf.reshape(conv_2, [self.dynamic_batch_size, 7 * 7 * 32])
 
             mean = tf.layers.dense(flatten, self.hidden_size)
             stddev = tf.layers.dense(flatten, self.hidden_size)
@@ -146,7 +144,7 @@ class SimpleVAE(VAE):
     def decode(self, z):
         with tf.variable_scope("decode"):
             starting_res_1d = tf.layers.dense(z, 7 * 7 * 32, activation=tf.nn.leaky_relu)
-            starting_res_2d = tf.reshape(starting_res_1d, [-1, 7, 7, 32])
+            starting_res_2d = tf.reshape(starting_res_1d, [self.dynamic_batch_size, 7, 7, 32])
             conv_1T = tf.layers.conv2d_transpose(starting_res_2d, 16, kernel_size=5, activation=tf.nn.leaky_relu,
                                                  strides=2,
                                                  padding='same')
