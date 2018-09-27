@@ -6,24 +6,31 @@ class WaveFile(object):
     def __init__(self, dir):
         self.hz = self.c1 = self.c2 = self.length = None
         self.dir = dir
-        if dir is not None: self.read(dir)
+        if dir is not None:
+            self.read(dir)
 
     def read(self, file):
         wave_file = wavfile.read(file)
-        self.c1 = wave_file[1][:, 0]
+        self.c1 = wave_file[1][:, 0] / np.linalg.norm(wave_file[1][:, 1], ord=np.inf)
         self.c2 = wave_file[1][:, 1]
         self.hz = wave_file[0]
         self.length = len(self.c1) / wave_file[0]
 
     def generate_samples(self, intervals, samples):
-        divided_audio = np.array_split(self.c1, intervals)
+        """
+        Split .wav audio file into intervals, calculate mean/std, draws n samples from distribution.
+        :param intervals: intervals per second of audio file
+        :param samples: number of samples from normal distribution
+        :return: 2D-Array, Shape(intervals, samples)
+        """
+        divided_audio = np.array_split(self.c1, int(intervals * self.length))
         generated_samples = []
 
         for part in divided_audio:
             sample = np.random.normal(self.mean(part), self.std(part), samples)
             generated_samples.append(sample)
 
-        return generated_samples
+        return generated_samples, int(intervals * self.length)
 
     def std(self, x):
         return np.std(x)
@@ -49,7 +56,6 @@ class WaveFile(object):
         plt.subplot(4, 1, 4)
         plt.plot(wave_file.c1)
         plt.show()
-
 
     def __repr__(self):
         return "Sampling rate: {0} Hz\nLength: {1:.2f} s\nDir: {2}".format(self.hz, self.length, self.dir)
