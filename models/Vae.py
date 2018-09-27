@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import datetime
 from abc import ABC, abstractmethod
 
 import tensorflow as tf
@@ -7,6 +8,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from config.config import TRAINING, TF_BOARD, IMAGES
+from music.music import WaveFile
 
 
 class VAE(ABC):
@@ -132,6 +134,30 @@ class VAE(ABC):
             plt.plot(img)
             plt.show()
             plt.imsave("./sample.png", img)
+
+    def generate_images_from_audio(self, weights, file, interval, samples):
+        """
+        Generate images, using specified network weights, from distribution from audio file.
+        :param weights: path to network weights
+        :param file: path to audio file
+        :param interval: number of images per second of audio.
+        :param samples: number of samples from distribution
+        :return:
+        """
+        saver = tf.train.Saver(max_to_keep=2)
+        with tf.Session() as sess:
+            saver.restore(sess, tf.train.latest_checkpoint(weights))
+            wave_file = WaveFile(dir=file)
+            z, num_of_images = wave_file.generate_samples(interval, samples)
+
+            images = sess.run(self.generated_images,
+                                       feed_dict={self.dynamic_batch_size: num_of_images, self.latent_z: z})
+
+            time = datetime.datetime.now().strftime("./generated_images/%d-%m-%y %H-%M-%S")
+            os.makedirs(time, exist_ok=True)
+
+            for i, image in enumerate(images):
+                plt.imsave("{}/image_{}.png".format(time, i), image[:, :, 0])
 
 
 class SimpleVAE(VAE):
