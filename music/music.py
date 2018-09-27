@@ -60,4 +60,4 @@ if __name__ == '__main__':
     print(wave_file)
 
     samples_x = wave_file.generate_samples(intervals=10, samples=20)
-    print(samples_x)
+    print("samples", samples_x)

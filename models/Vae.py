@@ -123,12 +123,13 @@ class VAE(ABC):
         with tf.Session() as sess:
             saver.restore(sess, tf.train.latest_checkpoint(path))
             # you can change the 1 to a different number, it indicates how many images are generated
-            number_of_images = 1
+            number_of_images = 100
             z = np.random.standard_normal((number_of_images, self.hidden_size))
             generated_image = sess.run(self.generated_images,
                                        feed_dict={self.dynamic_batch_size: number_of_images, self.latent_z: z})
             # plot somehow only works with two dimension (the third is 1 anyway)
             img = generated_image[0, :, :, 0]
+            np.save("images.npy", generated_image)
             plt.plot(img)
             plt.show()
             plt.imsave("./sample.png", img)
