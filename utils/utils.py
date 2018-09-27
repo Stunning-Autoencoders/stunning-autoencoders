@@ -41,4 +41,5 @@ if __name__ == '__main__':
     # load the music file
     wave_file = WaveFile(dir="../music/heartbeat.wav")
     # create the video
-    create_video(images, wave_file.c1, 9, wave_file.hz, "first.mp4")
+    # todo fix the audio
+    create_video(images, wave_file.c1, 9, wave_file.hz, "first2.mp4")
