@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from config.config import TRAINING, TF_BOARD, IMAGES
-from music.music import WaveFile
 
 
 class VAE(ABC):
@@ -136,7 +135,7 @@ class VAE(ABC):
             plt.show()
             plt.imsave("./sample.png", img)
 
-    def generate_images(self, weights, dists, save=True):
+    def generate_images(self, weights, dists, save=False):
         """
         Generate images, using specified network weights, from distribution from audio file.
         :param weights: path to network weights
