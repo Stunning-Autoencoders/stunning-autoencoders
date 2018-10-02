@@ -33,9 +33,8 @@ def merge_images_and_audio(images: DataList, audio: np.ndarray, video_duration: 
     # the audio should always contain two channels
     # then the hz should also work for mono and dual
     clip = ImageSequenceClip(images, durations=[video_duration / len(images)] * len(images))
-    l = len(audio[0]) if type(audio[0]) is list else 1
-    s = audio.reshape((len(audio), l))  # transform it from (N) to (N, 2)
-    audio = AudioArrayClip(s, sound_hz)
+    s = audio.reshape((len(audio), 2))  # transform it from (N) to (N, 2)
+    audio = AudioArrayClip(s, sound_hz*2) # sound_hz*2 because of 2 channels
     clip = clip.set_audio(audio)
     clip.write_videofile(video_name, fps=len(images) / video_duration)
 

@@ -2,6 +2,7 @@ from scipy.io import wavfile
 import numpy as np
 from matplotlib import pyplot as plt
 
+
 class WaveFile(object):
     def __init__(self, dir):
         self.hz = self.c1 = self.c2 = self.audio = self.length = None
@@ -10,15 +11,15 @@ class WaveFile(object):
             self.read(dir)
 
     def read(self, file):
-        wave_file = wavfile.read(file)
-        self.c1 = wave_file[1]
+        self.hz, self.c1 = wavfile.read(file)
+        # if there is only one channel just repeat it to simulate stereo
+        if len(self.c1.shape) == 1:
+            self.c1 = np.column_stack((self.c1, self.c1))
+        if not len(self.c1.shape) == 2:
+            raise NotImplementedError("Files with more than 2 channels are not supported at the moment!")
+        # maybe we dont want to normalize across both dimensions but for now its fine
         self.audio = (self.c1 - self.mean(self.c1)) / self.std(self.c1)
-        self.hz = wave_file[0]
-        self.length = len(self.c1) / wave_file[0]
-
-    def audio(self):
-        """Returns numpy array of audio mapped from -1 to 1"""
-        return self.audio / 32767
+        self.length = len(self.c1) / self.hz
 
     def generate_samples(self, intervals, samples):
         """
@@ -32,6 +33,8 @@ class WaveFile(object):
 
         for part in divided_audio:
             sample = np.random.normal(self.mean(part), self.std(part), samples)
+            sample = np.random.normal(self.mean(part), self.std(part), 1)
+            sample = np.repeat(sample, samples)
             generated_samples.append(sample)
 
         return generated_samples
@@ -67,7 +70,12 @@ class WaveFile(object):
 
 
 if __name__ == '__main__':
-    wave_file = WaveFile(dir="sweep_200hz-500hz.wav")
+    wave_file = WaveFile(dir="heartbeat.wav")
     print(wave_file)
+    wave_file = WaveFile(dir="we_will_rock_you.wav")
+    print(wave_file)
+    wave_file = WaveFile(dir="frequency_test.wav")
+    print(wave_file)
+    # print(wave_file)
 
     samples_x = wave_file.generate_samples(intervals=10, samples=20)
