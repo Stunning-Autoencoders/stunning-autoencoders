@@ -12,6 +12,8 @@ class WaveFile(object):
     def read(self, file):
         wave_file = wavfile.read(file)
         self.c1 = wave_file[1]
+        if len(self.c1[0]) is 2:
+            self.c1 = self.c1[:, 0]
         self.audio = (self.c1 - self.mean(self.c1)) / self.std(self.c1)
         self.hz = wave_file[0]
         self.length = len(self.c1) / wave_file[0]
@@ -67,7 +69,7 @@ class WaveFile(object):
 
 
 if __name__ == '__main__':
-    wave_file = WaveFile(dir="sweep_200hz-500hz.wav")
+    wave_file = WaveFile(dir="heartbeat.wav")
     print(wave_file)
 
     samples_x = wave_file.generate_samples(intervals=10, samples=20)
