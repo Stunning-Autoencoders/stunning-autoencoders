@@ -33,7 +33,7 @@ class VAE(ABC):
         with tf.variable_scope('latent_space'):
             samples = tf.random_normal([self.dynamic_batch_size, self.hidden_size], 0, 1, dtype=tf.float32,
                                        name='samples')
-            guessed_z = z_mean + (z_stddev * samples)
+            guessed_z = z_mean + tf.sqrt(tf.exp(z_stddev)) * samples
 
             # real z as input, needs to be separate for feeding in batches with different sizes
             self.latent_z = guessed_z
@@ -44,12 +44,15 @@ class VAE(ABC):
 
         with tf.variable_scope('loss'):
             # pixel correspondence loss (input/output)
-            self.generation_loss = tf.abs(tf.reduce_sum(tf.square(self.images_1d - generated_flat))) / tf.to_float(
-                self.dynamic_batch_size)
-
-            # KL-divergence
-            self.latent_loss = 0.5 * tf.reduce_sum(
-                tf.square(z_mean) + tf.square(z_stddev) - tf.log(tf.square(z_stddev)) - 1, 1)
+            epsilon = 1e-10
+            recon_loss = -tf.reduce_sum(
+                images_2d * tf.log(epsilon + self.generated_images) + (1 - images_2d) * tf.log(
+                    epsilon + 1 - self.generated_images))
+            self.generation_loss = tf.reduce_mean(recon_loss) / tf.to_float(self.dynamic_batch_size)
+            # todo maybe remove the devision
+            latent_loss = -0.5 * tf.reduce_sum(
+                1 + z_stddev - tf.square(z_mean) - tf.exp(z_stddev), axis=1)
+            self.latent_loss = tf.reduce_mean(latent_loss)
 
             # total loss
             self.cost = tf.reduce_mean(self.generation_loss + self.latent_loss)
@@ -148,7 +151,7 @@ class VAE(ABC):
             saver.restore(sess, tf.train.latest_checkpoint(weights))
             images = sess.run(self.generated_images,
 
-                                       feed_dict={self.dynamic_batch_size: len(dists), self.latent_z: dists})
+                              feed_dict={self.dynamic_batch_size: len(dists), self.latent_z: dists})
             if save:
                 time = datetime.datetime.now().strftime("./generated_images/%d-%m-%y %H-%M-%S")
                 os.makedirs(time, exist_ok=True)
@@ -169,8 +172,8 @@ class SimpleVAE(VAE):
         # 7x7x32 -> (7*7*32)
         flatten = tf.reshape(conv_2, [self.dynamic_batch_size, 7 * 7 * 32])
 
-        mean = tf.layers.dense(flatten, self.hidden_size, name='fc_mean')
-        stddev = tf.layers.dense(flatten, self.hidden_size, name='fc_std')
+        mean = tf.layers.dense(flatten, self.hidden_size, name='fc_mean', activation=None)
+        stddev = tf.layers.dense(flatten, self.hidden_size, name='fc_std', activation=None)
         return mean, stddev
 
     def decode(self, z):
