@@ -61,5 +61,5 @@ def create_video(VAE: Type[VAE], config, audio_file: str, model_path: str, outpu
 if __name__ == '__main__':
     # create_video(SimpleVAE, DEFAULT, "../music/heartbeat.wav", "../training/SimpleVAE/run0", "heartbeat.mp4")
     # create_video(SimpleVAE, DEFAULT, "../music/airplane-landing.wav", "../training/SimpleVAE/run0", "airplane-landing.mp4")
-    create_video(SimpleVAE, DEFAULT, "../music/we_will_rock_you.wav", "../training/SimpleVAE/run0",
-                 "we_will_rock_you.mp4", fps=24)
+    create_video(SimpleVAE, DEFAULT, "../music/heartbeat.wav", "../training/SimpleVAE/run3",
+                 "heartbeat.mp4", fps=24)
