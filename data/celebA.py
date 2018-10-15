@@ -123,7 +123,7 @@ class DataSet(object):
 
 def read_data_sets(train_dir):
 
-  train_images = np.load('images128.npy')
+  train_images = np.load(train_dir)
   train_images = np.swapaxes(train_images, 1, 2)
   train_images = np.swapaxes(train_images, 2, 3)
   img_size = len(train_images[0])
