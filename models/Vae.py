@@ -22,7 +22,7 @@ class VAE(ABC):
         # *** FEED FORWARD
         # encoder
         with tf.variable_scope("input"):
-            self.images_1d = tf.placeholder(tf.float32, [None, self.width ** 2])
+            self.images_1d = tf.placeholder(tf.float32, [None, self.width, self.width, 1])
             self.dynamic_batch_size = tf.shape(self.images_1d)[0]
             images_2d = tf.reshape(self.images_1d, [self.dynamic_batch_size, self.width, self.width, 1])
 
@@ -88,7 +88,8 @@ class VAE(ABC):
     def train(self):
         self.create_folders()
 
-        static_batch = self.data_set.test.next_batch(
+        # todo fix this| was using the test set before but that doesnt work anymore
+        static_batch = self.data_set.train.next_batch(
             self.batch_size)[0]
         summary_writer = tf.summary.FileWriter(TF_BOARD(), graph=tf.get_default_graph())
 
@@ -164,29 +165,21 @@ class VAE(ABC):
 class SimpleVAE(VAE):
     def encode(self, input_images):
         # 28x28x1 -> 14x14x16
-        # 128x128x1 -> 64x64x16
-        print('input', input_images.shape)
         conv_1 = tf.layers.conv2d(input_images, 16, kernel_size=5, activation=tf.nn.leaky_relu, strides=2,
                                   padding='same', name='d_conv_0')
         # 14x14x16 -> 7x7x32
-        # 64x64x16 -> 32x32x32
         conv_2 = tf.layers.conv2d(conv_1, 32, kernel_size=5, activation=tf.nn.leaky_relu, strides=2, padding='same',
                                   name='d_conv_1')
         # 7x7x32 -> (7*7*32)
-        #flatten = tf.reshape(conv_2, [self.dynamic_batch_size, 7 * 7 * 32])
-        # 32x32x32 -> (32*32*32)
-        flatten = tf.reshape(conv_2, [self.dynamic_batch_size, 32 * 32 * 32])
+        flatten = tf.reshape(conv_2, [self.dynamic_batch_size, 7 * 7 * 32])
 
         mean = tf.layers.dense(flatten, self.hidden_size, name='fc_mean', activation=None)
         stddev = tf.layers.dense(flatten, self.hidden_size, name='fc_std', activation=None)
         return mean, stddev
 
     def decode(self, z):
-        #starting_res_1d = tf.layers.dense(z, 7 * 7 * 32, activation=tf.nn.leaky_relu, name='fc_upscale')
-        #starting_res_2d = tf.reshape(starting_res_1d, [self.dynamic_batch_size, 7, 7, 32])
-
-        starting_res_1d = tf.layers.dense(z, 32 * 32 * 32, activation=tf.nn.leaky_relu, name='fc_upscale')
-        starting_res_2d = tf.reshape(starting_res_1d, [self.dynamic_batch_size, 32, 32, 32])
+        starting_res_1d = tf.layers.dense(z, 7 * 7 * 32, activation=tf.nn.leaky_relu, name='fc_upscale')
+        starting_res_2d = tf.reshape(starting_res_1d, [self.dynamic_batch_size, 7, 7, 32])
 
         conv_1T = tf.layers.conv2d_transpose(starting_res_2d, 16, kernel_size=5, activation=tf.nn.leaky_relu,
                                              strides=2,
@@ -194,4 +187,42 @@ class SimpleVAE(VAE):
         conv_2T = tf.layers.conv2d_transpose(conv_1T, 1, kernel_size=5, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_1')
         sig = tf.nn.sigmoid(conv_2T, name='sigmoid')
+        return sig
+
+
+class CelebAVAE(VAE):
+    def encode(self, input_images):
+        # 128x128x1 -> 64x64x16
+        conv_1 = tf.layers.conv2d(input_images, 16, kernel_size=3, activation=tf.nn.leaky_relu, strides=2,
+                                  padding='same', name='d_conv_0')
+        # 64x64x16 -> 32x32x32
+        conv_2 = tf.layers.conv2d(conv_1, 32, kernel_size=3, activation=tf.nn.leaky_relu, strides=2, padding='same',
+                                  name='d_conv_1')
+        # 32x32x32 -> 16x16x64
+        conv_3 = tf.layers.conv2d(conv_2, 64, kernel_size=3, activation=tf.nn.leaky_relu, strides=2, padding='same',
+                                  name='d_conv_2')
+        # 16x16x64 -> 8x8x128
+        conv_4 = tf.layers.conv2d(conv_3, 128, kernel_size=3, activation=tf.nn.leaky_relu, strides=2, padding='same',
+                                  name='d_conv_3')
+        # 8x8x128 -> (8*8*128)
+        flatten = tf.reshape(conv_4, [self.dynamic_batch_size, 8 * 8 * 128])
+
+        mean = tf.layers.dense(flatten, self.hidden_size, name='fc_mean', activation=None)
+        stddev = tf.layers.dense(flatten, self.hidden_size, name='fc_std', activation=None)
+        return mean, stddev
+
+    def decode(self, z):
+        starting_res_1d = tf.layers.dense(z, 8 * 8 * 128, activation=tf.nn.leaky_relu, name='fc_upscale')
+        starting_res_2d = tf.reshape(starting_res_1d, [self.dynamic_batch_size, 8, 8, 128])
+
+        conv_1T = tf.layers.conv2d_transpose(starting_res_2d, 64, kernel_size=3, activation=tf.nn.leaky_relu,
+                                             strides=2,
+                                             padding='same', name='u_conv_0')
+        conv_2T = tf.layers.conv2d_transpose(conv_1T, 32, kernel_size=3, activation=tf.nn.leaky_relu,
+                                             strides=2, padding='same', name='u_conv_1')
+        conv_3T = tf.layers.conv2d_transpose(conv_2T, 16, kernel_size=3, activation=tf.nn.leaky_relu,
+                                             strides=2, padding='same', name='u_conv_2')
+        conv_4T = tf.layers.conv2d_transpose(conv_3T, 1, kernel_size=3, activation=tf.nn.leaky_relu,
+                                             strides=2, padding='same', name='u_conv_3')
+        sig = tf.nn.sigmoid(conv_4T, name='sigmoid')
         return sig

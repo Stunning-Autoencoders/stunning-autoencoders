@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 from six.moves import xrange  # pylint: disable=redefined-builtin
 from tensorflow.contrib.learn.python.learn.datasets import base
 from tensorflow.python.framework import random_seed
@@ -53,7 +52,7 @@ class DataSet(object):
       if dtype == dtypes.float32:
         # Convert from [0, 255] -> [0.0, 1.0].
         images = images.astype(np.float32)
-        images = np.multiply(images, 1.0 / 255.0)
+        images /= 255.
     self._images = images
     self._labels = labels
     self._epochs_completed = 0
@@ -168,7 +167,7 @@ def read_data_sets(train_dir):
   #train_labels = train_labels[validation_size:]
 
   dtype = dtypes.float32
-  reshape = True
+  reshape = False
   seed = None
 
   options = dict(dtype=dtype, reshape=reshape, seed=seed)

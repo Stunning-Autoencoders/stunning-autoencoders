@@ -11,7 +11,7 @@ class DataProvider:
     def get_celeb_a():
         # todo Implement this function so it returns the same format as the get_mnist
         # currently we don't need test and validation I guess
-        return read_data_sets("celebA_data/"), 128
+        return read_data_sets("data/images128.npy"), 128
 
 
 if __name__ == '__main__':
