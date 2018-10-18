@@ -13,11 +13,13 @@ from config.config import TRAINING, TF_BOARD, IMAGES
 class VAE(ABC):
 
     def __init__(self, data_set, hidden_size, batch_size, learning_rate, max_epochs):
-        self.data_set, self.width = data_set()
+        self.data_set, self.width = data_set(batch_size)
         self.batch_size = batch_size
         self.hidden_size = hidden_size
         self.max_epochs = max_epochs
         self.iterations_per_epoch = self.data_set.train.num_examples // self.batch_size
+
+        self.next_element = self.data_set.get_next()
 
         # *** FEED FORWARD
         # encoder
