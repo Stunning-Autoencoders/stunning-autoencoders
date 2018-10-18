@@ -27,7 +27,7 @@ class DataProvider:
 
         tfrecord_dataset = tf.data.TFRecordDataset("./data/images128.tfrecords")
         # be aware with the cache option; it will cache all data in memory
-        tfrecord_dataset = tfrecord_dataset.cache().map(lambda x: DataProvider._parse_(x)).shuffle(True).batch(
+        tfrecord_dataset = tfrecord_dataset.map(lambda x: DataProvider._parse_(x)).shuffle(True).batch(
             batch_size)
 
         return tfrecord_dataset, 128
