@@ -13,20 +13,19 @@ from config.config import TRAINING, TF_BOARD, IMAGES
 class VAE(ABC):
 
     def __init__(self, data_set, hidden_size, batch_size, learning_rate, max_epochs):
-        self.data_set, self.width = data_set(batch_size)
+        self.data_set, self.width = data_set(batch_size)  # self.data_set is now a tf_records_dataset
         self.batch_size = batch_size
         self.hidden_size = hidden_size
         self.max_epochs = max_epochs
-        self.iterations_per_epoch = self.data_set.train.num_examples // self.batch_size
-
-        self.next_element = self.data_set.get_next()
 
         # *** FEED FORWARD
         # encoder
         with tf.variable_scope("input"):
-            self.images_1d = tf.placeholder(tf.float32, [None, self.width, self.width, 1])
+            self.images_1d = tf.placeholder(tf.float32, [None, self.width * self.width * 3])
             self.dynamic_batch_size = tf.shape(self.images_1d)[0]
-            images_2d = tf.reshape(self.images_1d, [self.dynamic_batch_size, self.width, self.width, 1])
+            images_2d = tf.reshape(self.images_1d, [self.dynamic_batch_size, 3, self.width, self.width])
+            # todo make sure that the images are in right order! i couldnt test if this works
+            images_2d = tf.transpose(images_2d, perm=[0, 2, 3, 1])
 
         with tf.variable_scope('encode'):
             z_mean, z_stddev = self.encode(images_2d)
@@ -42,7 +41,6 @@ class VAE(ABC):
 
         with tf.variable_scope('decode'):
             self.generated_images = self.decode(self.latent_z)
-            generated_flat = tf.reshape(self.generated_images, [self.dynamic_batch_size, -1])
 
         with tf.variable_scope('loss'):
             # pixel correspondence loss (input/output)
@@ -71,7 +69,7 @@ class VAE(ABC):
         self.merged_summary_op = tf.summary.merge_all()
         self.image_summary = tf.summary.image("image", tf.reshape(self.generated_images,
                                                                   (self.dynamic_batch_size, self.width, self.width,
-                                                                   1)))
+                                                                   3)))
         os.environ["Model"] = self.__class__.__name__
 
     @abstractmethod
@@ -90,40 +88,60 @@ class VAE(ABC):
     def train(self):
         self.create_folders()
 
-        # todo fix this| was using the test set before but that doesnt work anymore
-        static_batch = self.data_set.train.next_batch(
-            self.batch_size)[0]
         summary_writer = tf.summary.FileWriter(TF_BOARD(), graph=tf.get_default_graph())
 
         # train
         saver = tf.train.Saver(max_to_keep=2)
         with tf.Session() as sess:
             sess.run(self.init)
+            # get a random batch as static batch
+            static_batch = sess.run(self.data_set.make_one_shot_iterator().get_next())
+
+            # thing for printing progress
             pgbar = tqdm(range(self.max_epochs))
+            # current numbers of batches
+            iteration = 0
+
+            # log images in beginning as well
+            generated_images, images_summary = sess.run((self.generated_images, self.image_summary),
+                                                        feed_dict={self.images_1d: static_batch})
+            summary_writer.add_summary(images_summary,
+                                       global_step=iteration)
+
             for epoch in pgbar:
+                # create iterator for getting the data
+                tfrecord_iterator = self.data_set.make_one_shot_iterator()
+                batch = tfrecord_iterator.get_next()
+
                 gen_loss = None
                 lat_loss = None
 
-                for idx in range(self.iterations_per_epoch):
-                    batch = self.data_set.train.next_batch(self.batch_size)[0]
-                    _, gen_loss, lat_loss, summary = sess.run(
-                        (self.optimizer, self.generation_loss, self.latent_loss, self.merged_summary_op),
-                        feed_dict={self.images_1d: batch})
+                # while we get data from the iterator train
+                # if the tf.errors.OutOfRangeError is thrown the epoch is done
+                while True:
+                    try:
+                        _, gen_loss, lat_loss, summary = sess.run(
+                            (self.optimizer, self.generation_loss, self.latent_loss, self.merged_summary_op),
+                            feed_dict={self.images_1d: batch.eval()})  # i don't like the .eval() because it converts
+                        # the tensor back to numpy, but in theory we could use the tensor directly. but we can't feed it
+                        # here. So maybe there is an option to pass the iterator instead?
 
-                    # Write logs at every iteration
-                    summary_writer.add_summary(summary, epoch * self.iterations_per_epoch + idx)
-
+                        # Write logs at every iteration
+                        summary_writer.add_summary(summary, iteration)
+                        iteration += 1
+                    except tf.errors.OutOfRangeError:
+                        break
                 # todo get these values from last summary
                 tqdm.write("epoch {}: genloss {} latloss {}".format(epoch, np.mean(gen_loss), np.mean(lat_loss)))
 
                 # save current model
-                saver.save(sess, TRAINING() + "/train", global_step=epoch * self.data_set.train.num_examples)
+                saver.save(sess, TRAINING() + "/train", global_step=iteration)
 
                 # log images
                 generated_images, images_summary = sess.run((self.generated_images, self.image_summary),
                                                             feed_dict={self.images_1d: static_batch})
                 summary_writer.add_summary(images_summary,
-                                           global_step=epoch * self.data_set.train.num_examples)
+                                           global_step=iteration)
 
     def load_pretrained(self, path):
         saver = tf.train.Saver(max_to_keep=2)
@@ -224,7 +242,7 @@ class CelebAVAE(VAE):
                                              strides=2, padding='same', name='u_conv_1')
         conv_3T = tf.layers.conv2d_transpose(conv_2T, 16, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_2')
-        conv_4T = tf.layers.conv2d_transpose(conv_3T, 1, kernel_size=3, activation=tf.nn.leaky_relu,
+        conv_4T = tf.layers.conv2d_transpose(conv_3T, 3, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_3')
         sig = tf.nn.sigmoid(conv_4T, name='sigmoid')
         return sig
