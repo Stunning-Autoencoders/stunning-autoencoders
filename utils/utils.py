@@ -1,6 +1,8 @@
 import imageio
 import numpy as np
 import cv2
+import time
+import matplotlib.pyplot as plt
 
 # make sure ffmpeg is installed
 from config.config import DEFAULT
@@ -34,7 +36,7 @@ def merge_images_and_audio(images: DataList, audio: np.ndarray, video_duration: 
     # then the hz should also work for mono and dual
     clip = ImageSequenceClip(images, durations=[video_duration / len(images)] * len(images))
     s = audio.reshape((len(audio), 2))  # transform it from (N) to (N, 2)
-    audio = AudioArrayClip(s, sound_hz*2) # sound_hz*2 because of 2 channels
+    audio = AudioArrayClip(s, sound_hz)
     clip = clip.set_audio(audio)
     clip.write_videofile(video_name, fps=len(images) / video_duration)
 
@@ -43,12 +45,19 @@ def create_video(VAE: Type[VAE], config, audio_file: str, model_path: str, outpu
     vae = VAE(*config)
 
     wave_file = WaveFile(dir=audio_file)
-    sampled_dists = wave_file.generate_samples(intervals=fps, samples=20)
+    sampled_dists = wave_file.generate_mell(intervals=fps, samples=20)
+    #sampled_dists = wave_file.generate_samples(intervals=fps, samples=20)
+
     images = vae.generate_images(weights=model_path,
                                  dists=sampled_dists)
 
     images = (images[:, :, :, 0] * 255.999).astype(np.uint8)
     images = np.stack((images, images, images), -1)
+
+    #for i, image in enumerate(images):
+    #    image = cv2.resize(image, dsize=(138, 138))
+    #    plt.imsave("generated_images/heartbeat/image_{}.png".format(i), image)
+
     images = [cv2.resize(i, dsize=(320, 320)) for i in images]
 
     merge_images_and_audio(images=images,

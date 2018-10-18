@@ -1,6 +1,8 @@
 from scipy.io import wavfile
 import numpy as np
 from matplotlib import pyplot as plt
+import librosa
+import librosa.display
 
 
 class WaveFile(object):
@@ -33,11 +35,35 @@ class WaveFile(object):
 
         for part in divided_audio:
             sample = np.random.normal(self.mean(part), self.std(part), samples)
-            sample = np.random.normal(self.mean(part), self.std(part), 1)
-            sample = np.repeat(sample, samples)
+            #sample = np.random.normal(self.mean(part), self.std(part), 1)
+            #sample = np.repeat(sample, samples)
             generated_samples.append(sample)
 
         return generated_samples
+
+    def generate_mell(self, intervals, samples):
+        """
+        Split .wav audio file into intervals, calculate mean/std, draws n samples from distribution.
+        :param intervals: intervals per second of audio file
+        :param samples: number of samples from normal distribution
+        :return: 2D-Array, Shape(intervals, samples)
+        """
+
+        y, sr = librosa.load(self.dir)
+
+        D = np.abs(librosa.stft(y)) ** 2
+        S = librosa.feature.melspectrogram(S=D)
+
+        # Passing through arguments to the Mel filters
+        S2 = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=int(sr / intervals),
+                                            hop_length=int(sr / intervals), n_mels=samples,
+                                            )
+        S_dB = librosa.power_to_db(S2, ref=np.max)
+        S_dB += 80
+        S_dB /= S_dB.max()
+
+        return S_dB.T * 2 - 1
+
 
     def std(self, x):
         return np.std(x)
@@ -48,6 +74,8 @@ class WaveFile(object):
     def plot(self):
         """Plot four plots: histogram, normal distribution, spectogram and wave"""
         import matplotlib.mlab as mlab
+
+        """
         plt.subplot(4, 1, 1)
         plt.hist(wave_file.c1, range=(-5000, 5000), bins=500, density=False, label="wave")
         plt.legend()
@@ -60,8 +88,8 @@ class WaveFile(object):
 
         plt.subplot(4, 1, 3)
         plt.specgram(wave_file.c1, Fs=wave_file.hz)
-
-        plt.subplot(4, 1, 4)
+        """
+        #plt.subplot(4, 1, 4)
         plt.plot(wave_file.c1)
         plt.show()
 
@@ -72,10 +100,20 @@ class WaveFile(object):
 if __name__ == '__main__':
     wave_file = WaveFile(dir="heartbeat.wav")
     print(wave_file)
-    wave_file = WaveFile(dir="we_will_rock_you.wav")
-    print(wave_file)
-    wave_file = WaveFile(dir="frequency_test.wav")
-    print(wave_file)
+    #wave_file = WaveFile(dir="we_will_rock_you.wav")
+    #print(wave_file)
+    #wave_file = WaveFile(dir="frequency_test.wav")
+    #print(wave_file)
     # print(wave_file)
 
-    samples_x = wave_file.generate_samples(intervals=10, samples=20)
+    samples_x = wave_file.generate_mell(intervals=24, samples=5)
+
+    #wave_file.plot()
+    #half_sec = wave_file.audio[0:int(wave_file.hz / 2), 0]
+
+    #plt.plot(np.linspace(0, 500, int(wave_file.hz / 2), endpoint=True), half_sec, label="Heartbeat audio signal")
+    #plt.specgram(samples_x)
+    #plt.xlabel("Time (ms)")
+    #plt.ylabel("Amplitude")
+    #plt.legend()
+    #plt.show()
