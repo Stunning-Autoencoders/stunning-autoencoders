@@ -224,25 +224,35 @@ class CelebAVAE(VAE):
         # 16x16x64 -> 8x8x128
         conv_4 = tf.layers.conv2d(conv_3, 128, kernel_size=3, activation=tf.nn.leaky_relu, strides=2, padding='same',
                                   name='d_conv_3')
-        # 8x8x128 -> (8*8*128)
-        flatten = tf.reshape(conv_4, [self.dynamic_batch_size, 8 * 8 * 128])
+        # 8x8x128 -> 4x4x256
+        conv_5 = tf.layers.conv2d(conv_4, 256, kernel_size=3, activation=tf.nn.leaky_relu, strides=2, padding='same',
+                                  name='d_conv_4')
+        # 4x4x256 -> 2x2x512
+        conv_6 = tf.layers.conv2d(conv_5, 512, kernel_size=3, activation=tf.nn.leaky_relu, strides=2, padding='same',
+                                  name='d_conv_5')
+        # 2x2x512 -> (2*2*512)
+        flatten = tf.reshape(conv_6, [self.dynamic_batch_size, 2*2*512])
 
         mean = tf.layers.dense(flatten, self.hidden_size, name='fc_mean', activation=None)
         stddev = tf.layers.dense(flatten, self.hidden_size, name='fc_std', activation=None)
         return mean, stddev
 
     def decode(self, z):
-        starting_res_1d = tf.layers.dense(z, 8 * 8 * 128, activation=tf.nn.leaky_relu, name='fc_upscale')
-        starting_res_2d = tf.reshape(starting_res_1d, [self.dynamic_batch_size, 8, 8, 128])
+        starting_res_1d = tf.layers.dense(z, 2*2*512, activation=tf.nn.leaky_relu, name='fc_upscale')
+        starting_res_2d = tf.reshape(starting_res_1d, [self.dynamic_batch_size, 2, 2, 512])
 
-        conv_1T = tf.layers.conv2d_transpose(starting_res_2d, 64, kernel_size=3, activation=tf.nn.leaky_relu,
+        conv_1T = tf.layers.conv2d_transpose(starting_res_2d, 256, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2,
                                              padding='same', name='u_conv_0')
-        conv_2T = tf.layers.conv2d_transpose(conv_1T, 32, kernel_size=3, activation=tf.nn.leaky_relu,
+        conv_2T = tf.layers.conv2d_transpose(conv_1T, 128, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_1')
-        conv_3T = tf.layers.conv2d_transpose(conv_2T, 16, kernel_size=3, activation=tf.nn.leaky_relu,
+        conv_3T = tf.layers.conv2d_transpose(conv_2T, 64, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_2')
-        conv_4T = tf.layers.conv2d_transpose(conv_3T, 3, kernel_size=3, activation=tf.nn.leaky_relu,
+        conv_4T = tf.layers.conv2d_transpose(conv_3T, 32, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_3')
-        sig = tf.nn.sigmoid(conv_4T, name='sigmoid')
+        conv_5T = tf.layers.conv2d_transpose(conv_4T, 16, kernel_size=3, activation=tf.nn.leaky_relu,
+                                             strides=2, padding='same', name='u_conv_4')
+        conv_6T = tf.layers.conv2d_transpose(conv_5T, 3, kernel_size=3, activation=tf.nn.leaky_relu,
+                                             strides=2, padding='same', name='u_conv_5')
+        sig = tf.nn.sigmoid(conv_6T, name='sigmoid')
         return sig
