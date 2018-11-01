@@ -9,8 +9,9 @@ from tqdm import tqdm
 from config.config import TRAINING, TF_BOARD, IMAGES
 
 config = tf.ConfigProto()
-#config.gpu_options.per_process_gpu_memory_fraction = 0.3
+# config.gpu_options.per_process_gpu_memory_fraction = 0.3
 config.gpu_options.allow_growth = True
+
 
 class VAE(ABC):
 
@@ -35,6 +36,7 @@ class VAE(ABC):
         # generate samples
         with tf.variable_scope('latent_space'):
             self.z_stddev = tf.exp(0.5*z_stddev)
+            #self.z_stddev = tf.sqrt(tf.exp(z_stddev))
             samples = tf.random_normal([self.dynamic_batch_size, self.hidden_size], 0, 1, dtype=tf.float32,
                                        name='samples')
             guessed_z = self.z_mean + self.z_stddev * samples
@@ -46,11 +48,23 @@ class VAE(ABC):
             self.generated_images = self.decode(self.latent_z)
 
         with tf.variable_scope('loss'):
-            xentropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=images_2d, logits=self.generated_images)
-            self.generation_loss = tf.reduce_sum(xentropy)
+            epsilon = 1e-10
+            recon_loss = -tf.reduce_sum(
+                images_2d * tf.log(epsilon + self.generated_images) + (1 - images_2d) * tf.log(
+                    epsilon + 1 - self.generated_images),
+                axis=1
+            )
+            self.generation_loss = tf.reduce_mean(recon_loss)
 
-            self.latent_loss = 0.5 * tf.reduce_sum(tf.exp(z_stddev) + tf.square(self.z_mean) -1 - z_stddev)
+            # xentropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=images_2d, logits=self.generated_images)
+            # self.generation_loss = tf.reduce_sum(xentropy)
 
+            #latent_loss = -0.5 * tf.reduce_sum(
+            #    1 + z_stddev - tf.square(self.z_mean) - tf.exp(z_stddev), axis=1)
+            #self.latent_loss = tf.reduce_mean(latent_loss)
+
+            self.latent_loss = tf.reduce_mean(0.5 * tf.reduce_sum(tf.exp(z_stddev) + tf.square(self.z_mean) -1 - z_stddev))
+            # self.latent_loss = 0.5 * tf.reduce_sum(tf.exp(z_stddev) + tf.square(self.z_mean) -1 - z_stddev)
 
             """
             # pixel correspondence loss (input/output)
@@ -66,7 +80,7 @@ class VAE(ABC):
             """
 
             # total loss
-            self.cost = self.generation_loss + self.latent_loss#tf.reduce_mean(self.generation_loss + self.latent_loss)
+            self.cost = self.generation_loss + self.latent_loss  # tf.reduce_mean(self.generation_loss + self.latent_loss)
 
         # *** OPTIMIZER
         self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.cost)
@@ -249,14 +263,14 @@ class CelebAVAE(VAE):
         conv_6 = tf.layers.conv2d(conv_5, 512, kernel_size=3, activation=tf.nn.leaky_relu, strides=2, padding='same',
                                   name='d_conv_5')
         # 2x2x512 -> (2*2*512)
-        flatten = tf.reshape(conv_6, [self.dynamic_batch_size, 2*2*512])
+        flatten = tf.reshape(conv_6, [self.dynamic_batch_size, 2 * 2 * 512])
 
         mean = tf.layers.dense(flatten, self.hidden_size, name='fc_mean', activation=None)
         stddev = tf.layers.dense(flatten, self.hidden_size, name='fc_std', activation=None)
         return mean, stddev
 
     def decode(self, z):
-        starting_res_1d = tf.layers.dense(z, 2*2*512, activation=tf.nn.leaky_relu, name='fc_upscale')
+        starting_res_1d = tf.layers.dense(z, 2 * 2 * 512, activation=tf.nn.leaky_relu, name='fc_upscale')
         starting_res_2d = tf.reshape(starting_res_1d, [self.dynamic_batch_size, 2, 2, 512])
 
         conv_1T = tf.layers.conv2d_transpose(starting_res_2d, 256, kernel_size=3, activation=tf.nn.leaky_relu,
@@ -270,7 +284,6 @@ class CelebAVAE(VAE):
                                              strides=2, padding='same', name='u_conv_3')
         conv_5T = tf.layers.conv2d_transpose(conv_4T, 16, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_4')
-        conv_6T = tf.layers.conv2d_transpose(conv_5T, 3, kernel_size=3, activation=tf.nn.leaky_relu,
+        conv_6T = tf.layers.conv2d_transpose(conv_5T, 3, kernel_size=3, activation=tf.nn.sigmoid,
                                              strides=2, padding='same', name='u_conv_5')
-        sig = tf.nn.sigmoid(conv_6T, name='sigmoid')
-        return sig
+        return conv_6T
