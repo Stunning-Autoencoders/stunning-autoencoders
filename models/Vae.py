@@ -1,14 +1,16 @@
+import datetime
 import numpy as np
 import os
-import datetime
 from abc import ABC, abstractmethod
 
 import tensorflow as tf
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from config.config import TRAINING, TF_BOARD, IMAGES
 
+config = tf.ConfigProto()
+#config.gpu_options.per_process_gpu_memory_fraction = 0.3
+config.gpu_options.allow_growth = True
 
 class VAE(ABC):
 
@@ -92,7 +94,7 @@ class VAE(ABC):
 
         # train
         saver = tf.train.Saver(max_to_keep=2)
-        with tf.Session() as sess:
+        with tf.Session(config=config) as sess:
             sess.run(self.init)
             # get a random batch as static batch
             static_batch = sess.run(self.data_set.make_one_shot_iterator().get_next())
@@ -144,8 +146,9 @@ class VAE(ABC):
                                            global_step=iteration)
 
     def load_pretrained(self, path):
+        import matplotlib.pyplot as plt
         saver = tf.train.Saver(max_to_keep=2)
-        with tf.Session() as sess:
+        with tf.Session(config=config) as sess:
             saver.restore(sess, tf.train.latest_checkpoint(path))
             # you can change the 1 to a different number, it indicates how many images are generated
             number_of_images = 100
@@ -168,12 +171,13 @@ class VAE(ABC):
         :return: numpy array of images
         """
         saver = tf.train.Saver(max_to_keep=2)
-        with tf.Session() as sess:
+        with tf.Session(config=config) as sess:
             saver.restore(sess, tf.train.latest_checkpoint(weights))
             images = sess.run(self.generated_images,
 
                               feed_dict={self.dynamic_batch_size: len(dists), self.latent_z: dists})
             if save:
+                import matplotlib.pyplot as plt
                 time = datetime.datetime.now().strftime("./generated_images/%d-%m-%y %H-%M-%S")
                 os.makedirs(time, exist_ok=True)
                 for i, image in enumerate(images):

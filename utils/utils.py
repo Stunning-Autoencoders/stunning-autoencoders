@@ -1,8 +1,6 @@
 import imageio
 import numpy as np
 import cv2
-import time
-import matplotlib.pyplot as plt
 
 # make sure ffmpeg is installed
 from config.config import DEFAULT
@@ -45,14 +43,19 @@ def create_video(VAE: Type[VAE], config, audio_file: str, model_path: str, outpu
     vae = VAE(*config)
 
     wave_file = WaveFile(dir=audio_file)
-    sampled_dists = wave_file.generate_mell(intervals=fps, samples=20)
+    sampled_dists = wave_file.generate_mell(intervals=fps, samples=10)
     #sampled_dists = wave_file.generate_samples(intervals=fps, samples=20)
 
-    images = vae.generate_images(weights=model_path,
-                                 dists=sampled_dists)
+    im1 = vae.generate_images(weights=model_path,
+                                 dists=sampled_dists[:len(sampled_dists)//2])
 
-    images = (images[:, :, :, 0] * 255.999).astype(np.uint8)
-    images = np.stack((images, images, images), -1)
+    im2 = vae.generate_images(weights=model_path,
+                                 dists=sampled_dists[len(sampled_dists)//2:])
+
+    images = np.concatenate((im1, im2))
+
+    images = (images[:, :, :, :] * 255.999).astype(np.uint8)
+    #images = np.stack((images, images, images), -1)
 
     #for i, image in enumerate(images):
     #    image = cv2.resize(image, dsize=(138, 138))
