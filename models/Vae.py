@@ -34,7 +34,7 @@ class VAE(ABC):
 
         # generate samples
         with tf.variable_scope('latent_space'):
-            self.z_stddev = tf.sqrt(tf.exp(z_stddev))
+            self.z_stddev = tf.exp(0.5*z_stddev)
             samples = tf.random_normal([self.dynamic_batch_size, self.hidden_size], 0, 1, dtype=tf.float32,
                                        name='samples')
             guessed_z = self.z_mean + self.z_stddev * samples
@@ -46,6 +46,13 @@ class VAE(ABC):
             self.generated_images = self.decode(self.latent_z)
 
         with tf.variable_scope('loss'):
+            xentropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=images_2d, logits=self.generated_images)
+            self.generation_loss = tf.reduce_sum(xentropy)
+
+            self.latent_loss = 0.5 * tf.reduce_sum(tf.exp(z_stddev) + tf.square(self.z_mean) -1 - z_stddev)
+
+
+            """
             # pixel correspondence loss (input/output)
             epsilon = 1e-10
             recon_loss = -tf.reduce_sum(
@@ -56,9 +63,10 @@ class VAE(ABC):
             latent_loss = -0.5 * tf.reduce_sum(
                 1 + z_stddev - tf.square(self.z_mean) - tf.exp(z_stddev), axis=1)
             self.latent_loss = tf.reduce_mean(latent_loss)
+            """
 
             # total loss
-            self.cost = tf.reduce_mean(self.generation_loss + self.latent_loss)
+            self.cost = self.generation_loss + self.latent_loss#tf.reduce_mean(self.generation_loss + self.latent_loss)
 
         # *** OPTIMIZER
         self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.cost)
@@ -214,7 +222,7 @@ class SimpleVAE(VAE):
         conv_1T = tf.layers.conv2d_transpose(starting_res_2d, 16, kernel_size=5, activation=tf.nn.leaky_relu,
                                              strides=2,
                                              padding='same', name='u_conv_0')
-        conv_2T = tf.layers.conv2d_transpose(conv_1T, 1, kernel_size=5, activation=tf.nn.leaky_relu,
+        conv_2T = tf.layers.conv2d_transpose(conv_1T, 1, kernel_size=5, activation=None,
                                              strides=2, padding='same', name='u_conv_1')
         sig = tf.nn.sigmoid(conv_2T, name='sigmoid')
         return sig
