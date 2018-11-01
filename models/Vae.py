@@ -30,13 +30,14 @@ class VAE(ABC):
             images_2d = tf.transpose(images_2d, perm=[0, 2, 3, 1])
 
         with tf.variable_scope('encode'):
-            z_mean, z_stddev = self.encode(images_2d)
+            self.z_mean, z_stddev = self.encode(images_2d)
 
         # generate samples
         with tf.variable_scope('latent_space'):
+            self.z_stddev = tf.sqrt(tf.exp(z_stddev))
             samples = tf.random_normal([self.dynamic_batch_size, self.hidden_size], 0, 1, dtype=tf.float32,
                                        name='samples')
-            guessed_z = z_mean + tf.sqrt(tf.exp(z_stddev)) * samples
+            guessed_z = self.z_mean + self.z_stddev * samples
 
             # real z as input, needs to be separate for feeding in batches with different sizes
             self.latent_z = guessed_z
@@ -53,7 +54,7 @@ class VAE(ABC):
             self.generation_loss = tf.reduce_mean(recon_loss) / tf.to_float(self.dynamic_batch_size)
             # todo maybe remove the devision
             latent_loss = -0.5 * tf.reduce_sum(
-                1 + z_stddev - tf.square(z_mean) - tf.exp(z_stddev), axis=1)
+                1 + z_stddev - tf.square(self.z_mean) - tf.exp(z_stddev), axis=1)
             self.latent_loss = tf.reduce_mean(latent_loss)
 
             # total loss
@@ -68,6 +69,11 @@ class VAE(ABC):
         tf.summary.scalar("total", self.cost, family="loss")
         tf.summary.scalar("generation", tf.reduce_mean(self.generation_loss), family="loss")
         tf.summary.scalar("KL-Divergence", tf.reduce_mean(self.latent_loss), family="loss")
+        tf.summary.histogram("mean", self.z_mean, family="latent_space")
+        tf.summary.histogram("std", self.z_stddev, family="latent_space")
+        tf.summary.histogram("std_exp", z_stddev, family="latent_space")
+        tf.summary.histogram("latent_z", self.latent_z, family="latent_space")
+
         self.merged_summary_op = tf.summary.merge_all()
         self.image_summary = tf.summary.image("image", tf.reshape(self.generated_images,
                                                                   (self.dynamic_batch_size, self.width, self.width,
