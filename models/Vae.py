@@ -31,56 +31,39 @@ class VAE(ABC):
             images_2d = tf.transpose(images_2d, perm=[0, 2, 3, 1])
 
         with tf.variable_scope('encode'):
-            self.z_mean, z_stddev = self.encode(images_2d)
+            self.z_mean, z_stddev_log_squared = self.encode(images_2d)
 
         # generate samples
         with tf.variable_scope('latent_space'):
-            self.z_stddev = tf.exp(0.5*z_stddev)
-            #self.z_stddev = tf.sqrt(tf.exp(z_stddev))
-            samples = tf.random_normal([self.dynamic_batch_size, self.hidden_size], 0, 1, dtype=tf.float32,
+            self.z_stddev = tf.sqrt(tf.exp(z_stddev_log_squared))
+            samples = tf.random_normal(tf.shape(z_stddev_log_squared), 0, 1, dtype=tf.float32,
                                        name='samples')
-            guessed_z = self.z_mean + self.z_stddev * samples
 
             # real z as input, needs to be separate for feeding in batches with different sizes
-            self.latent_z = guessed_z
+            self.latent_z = self.z_mean + self.z_stddev * samples
 
         with tf.variable_scope('decode'):
             self.generated_images = self.decode(self.latent_z)
 
         with tf.variable_scope('loss'):
-            epsilon = 1e-10
-            recon_loss = -tf.reduce_sum(
-                images_2d * tf.log(epsilon + self.generated_images) + (1 - images_2d) * tf.log(
-                    epsilon + 1 - self.generated_images),
-                axis=1
-            )
-            self.generation_loss = tf.reduce_mean(recon_loss)
-
-            # xentropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=images_2d, logits=self.generated_images)
-            # self.generation_loss = tf.reduce_sum(xentropy)
-
-            #latent_loss = -0.5 * tf.reduce_sum(
-            #    1 + z_stddev - tf.square(self.z_mean) - tf.exp(z_stddev), axis=1)
-            #self.latent_loss = tf.reduce_mean(latent_loss)
-
-            self.latent_loss = tf.reduce_mean(0.5 * tf.reduce_sum(tf.exp(z_stddev) + tf.square(self.z_mean) -1 - z_stddev))
-            # self.latent_loss = 0.5 * tf.reduce_sum(tf.exp(z_stddev) + tf.square(self.z_mean) -1 - z_stddev)
-
-            """
             # pixel correspondence loss (input/output)
             epsilon = 1e-10
             recon_loss = -tf.reduce_sum(
                 images_2d * tf.log(epsilon + self.generated_images) + (1 - images_2d) * tf.log(
                     epsilon + 1 - self.generated_images))
-            self.generation_loss = tf.reduce_mean(recon_loss) / tf.to_float(self.dynamic_batch_size)
+            self.generation_loss = tf.reduce_mean(recon_loss)
+            # self.generation_loss = recon_loss
             # todo maybe remove the devision
+
+            # KL-divergence
             latent_loss = -0.5 * tf.reduce_sum(
-                1 + z_stddev - tf.square(self.z_mean) - tf.exp(z_stddev), axis=1)
+                1 + z_stddev_log_squared - tf.square(self.z_mean) - tf.exp(z_stddev_log_squared), axis=1)
             self.latent_loss = tf.reduce_mean(latent_loss)
-            """
+            # self.latent_loss = latent_loss
 
             # total loss
-            self.cost = self.generation_loss + self.latent_loss  # tf.reduce_mean(self.generation_loss + self.latent_loss)
+            # self.cost = tf.reduce_mean((self.generation_loss + self.latent_loss) / tf.to_float(self.dynamic_batch_size))
+            self.cost = tf.reduce_mean((self.generation_loss + self.latent_loss)/ tf.to_float(self.dynamic_batch_size))
 
         # *** OPTIMIZER
         self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.cost)
@@ -93,8 +76,9 @@ class VAE(ABC):
         tf.summary.scalar("KL-Divergence", tf.reduce_mean(self.latent_loss), family="loss")
         tf.summary.histogram("mean", self.z_mean, family="latent_space")
         tf.summary.histogram("std", self.z_stddev, family="latent_space")
-        tf.summary.histogram("std_exp", z_stddev, family="latent_space")
+        tf.summary.histogram("std_exp", z_stddev_log_squared, family="latent_space")
         tf.summary.histogram("latent_z", self.latent_z, family="latent_space")
+        tf.summary.histogram("samples", samples, family="latent_space")
 
         self.merged_summary_op = tf.summary.merge_all()
         self.image_summary = tf.summary.image("image", tf.reshape(self.generated_images,
@@ -236,7 +220,7 @@ class SimpleVAE(VAE):
         conv_1T = tf.layers.conv2d_transpose(starting_res_2d, 16, kernel_size=5, activation=tf.nn.leaky_relu,
                                              strides=2,
                                              padding='same', name='u_conv_0')
-        conv_2T = tf.layers.conv2d_transpose(conv_1T, 1, kernel_size=5, activation=None,
+        conv_2T = tf.layers.conv2d_transpose(conv_1T, 1, kernel_size=5, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_1')
         sig = tf.nn.sigmoid(conv_2T, name='sigmoid')
         return sig
@@ -284,6 +268,7 @@ class CelebAVAE(VAE):
                                              strides=2, padding='same', name='u_conv_3')
         conv_5T = tf.layers.conv2d_transpose(conv_4T, 16, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_4')
-        conv_6T = tf.layers.conv2d_transpose(conv_5T, 3, kernel_size=3, activation=tf.nn.sigmoid,
+        conv_6T = tf.layers.conv2d_transpose(conv_5T, 3, kernel_size=3, activation=tf.nn.leaky_relu,
                                              strides=2, padding='same', name='u_conv_5')
-        return conv_6T
+        sig = tf.nn.sigmoid(conv_6T, name='sigmoid')
+        return sig
