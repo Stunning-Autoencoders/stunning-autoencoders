@@ -50,20 +50,26 @@ class VAE(ABC):
             epsilon = 1e-10
             recon_loss = -tf.reduce_sum(
                 images_2d * tf.log(epsilon + self.generated_images) + (1 - images_2d) * tf.log(
-                    epsilon + 1 - self.generated_images))
-            self.generation_loss = tf.reduce_mean(recon_loss)
-            # self.generation_loss = recon_loss
+                    epsilon + 1 - self.generated_images), axis=[1, 2, 3])
+            print(f"recon_loss: {recon_loss}")
+            # remove rgb
+            # self.generation_loss = tf.reduce_sum(recon_loss, axis=1)
+            self.generation_loss = recon_loss / tf.to_float((128 * 128 * 3) / (28 * 28 * 1))
+            print(f"generation_loss: {self.generation_loss}")
             # todo maybe remove the devision
 
             # KL-divergence
             latent_loss = -0.5 * tf.reduce_sum(
                 1 + z_stddev_log_squared - tf.square(self.z_mean) - tf.exp(z_stddev_log_squared), axis=1)
-            self.latent_loss = tf.reduce_mean(latent_loss)
-            # self.latent_loss = latent_loss
+            print(f"latent_loss: {latent_loss}")
+            # remove batch_size
+            # self.latent_loss = tf.reduce_mean(latent_loss)
+            self.latent_loss = latent_loss
+            print(f"latent_loss2: {self.latent_loss}")
 
             # total loss
+            self.cost = tf.reduce_mean(self.generation_loss + self.latent_loss)
             # self.cost = tf.reduce_mean((self.generation_loss + self.latent_loss) / tf.to_float(self.dynamic_batch_size))
-            self.cost = tf.reduce_mean((self.generation_loss + self.latent_loss)/ tf.to_float(self.dynamic_batch_size))
 
         # *** OPTIMIZER
         self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.cost)

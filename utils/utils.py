@@ -43,7 +43,7 @@ def create_video(VAE: Type[VAE], config, audio_file: str, model_path: str, outpu
     vae = VAE(*config)
 
     wave_file = WaveFile(dir=audio_file)
-    sampled_dists = wave_file.generate_mell(intervals=fps, samples=10)
+    sampled_dists = wave_file.generate_mell(intervals=fps, samples=config.hidden_size)
     #sampled_dists = wave_file.generate_samples(intervals=fps, samples=20)
 
     im1 = vae.generate_images(weights=model_path,

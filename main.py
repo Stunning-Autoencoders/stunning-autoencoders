@@ -1,6 +1,6 @@
 from config.config import DEFAULT, CELEBA
 from models.Vae import SimpleVAE, CelebAVAE
-#from utils.utils import create_video
+from utils.utils import create_video
 
 import os
 
@@ -12,5 +12,5 @@ if __name__ == '__main__':
     #vae = SimpleVAE(*DEFAULT)
     #vae.load_pretrained("./training/CelebVAE/best_run")
 
-    #create_video(CelebAVAE, CELEBA, "./music/we_will_rock_you.wav", "./training/CelebAVAE/next_best_run",
+    #create_video(CelebAVAE, CELEBA, "./music/we_will_rock_you.wav", "./training/CelebAVAE/2018-11-02 20-08-24.269704",
     #             "we_will_rock_you_test.mp4", fps=24)
