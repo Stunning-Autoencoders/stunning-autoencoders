@@ -7,10 +7,8 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 if __name__ == '__main__':
-    #SimpleVAE(*DEFAULT).train()
+    # SimpleVAE(*DEFAULT).train()
     CelebAVAE(*CELEBA).train()
-    #vae = SimpleVAE(*DEFAULT)
-    #vae.load_pretrained("./training/CelebVAE/best_run")
-
-    #create_video(CelebAVAE, CELEBA, "./music/we_will_rock_you.wav", "./training/CelebAVAE/2018-11-02 20-08-24.269704",
-    #             "we_will_rock_you_test.mp4", fps=24)
+    # file_name = ""
+    # create_video(CelebAVAE, CELEBA, f"./music/{file_name}.wav", "./training/CelebAVAE/100_hidden",
+    #             f"{file_name}_test.mp4", fps=24)
