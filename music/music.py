@@ -1,8 +1,6 @@
 from scipy.io import wavfile
 import numpy as np
-from matplotlib import pyplot as plt
 import librosa
-import librosa.display
 
 
 class WaveFile(object):
@@ -90,8 +88,6 @@ class WaveFile(object):
         plt.specgram(wave_file.c1, Fs=wave_file.hz)
         """
         #plt.subplot(4, 1, 4)
-        plt.plot(wave_file.c1)
-        plt.show()
 
     def __repr__(self):
         return "Sampling rate: {0} Hz\nLength: {1:.2f} s\nDir: {2}".format(self.hz, self.length, self.dir)
